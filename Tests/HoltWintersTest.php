@@ -18,13 +18,10 @@ class SstTest extends PHPUnit_Framework_TestCase
         $series = array(146, 96, 59, 133, 192, 
             127, 79, 186, 272, 155, 98, 219);
         $est = $this->h->forecast($series, count($series) + 4);
-        $last4 = array_slice($est, count($series)-1);
-        print_r($last4);
-        /*
+        $last4 = array_slice($est, count($series));
         $this->assertEquals($last4,
             array(310.8, 196.3, 117.7, 263.4), 
             'incorrect forecast',
             0.1);
-         */
     }
 }

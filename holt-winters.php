@@ -13,16 +13,15 @@ class HoltWinters
     public function forecast($series, $output_len)
     {
         $s = array($series[0]);
-        $t = array($series[1]-$series[0]);
-        $p = array(1);
+        $t = $this->initial_trend($series);
+        $p = $this->initial_seansonal_indices($series);
+        $F = $s;
 
         $cap = min(count($series), $output_len);
         for ($i = 1; $i < $cap; $i++) {
             $x = $series[$i];
-            $pik = 1;
-            if (isset($p[$i-$this->k])) {
-                $pik = $p[$i-$this->k];
-            }
+            $ik = $i >= $this->k ? $i-$this->k : $i;
+            $pik = $p[$ik];
 
             $s[$i] = $this->alpha * $x / $pik + 
                 (1 - $this->alpha) * ($s[$i-1] + $t[$i-1]);
@@ -31,15 +30,51 @@ class HoltWinters
             $p[$i] = $this->gamma * $x / $s[$i] + 
                 (1 - $this->gamma) * $pik;
 
-            echo "x: $x, s: $s[$i], t: $t[$i], p: $p[$i]\n";
+            $ik = $i-1 >= $this->k ? $i-$this->k-1 : $i-1;
+            $F[$i] = ($s[$i-1] + $t[$i-1]) * $p[$ik];
         }
 
         $i = count($s)-1;
-        for ($h = 0; $h < $output_len-count($series); $h++) {
-            $pik = $i-$this->k+$h;
-            $s[$i+$h] = ($s[$i] + $h*$t[$i]) * $p[$pik];
+        for ($h = 1; $h <= $output_len-count($series); $h++) {
+            $pik = $i-$this->k+($h % $this->k);
+            $F[$i+$h] = ($s[$i] + $h*$t[$i]) * $p[$pik];
         }
 
-        return $s;
+        return $F;
+    }
+
+    private function initial_trend($series)
+    {
+        $sum = 0;
+        for ($i = 0; $i < $this->k; $i++) {
+            $sum += ($series[$this->k+$i] - $series[$i]) / 
+                $this->k;
+        }
+
+        return array($sum / $this->k);
+    }
+
+    private function initial_seansonal_indices($series)
+    {
+        $cycles = floor(count($series) / $this->k);
+        $p = array_fill(0, $this->k, 0);
+
+        for ($i = 0; $i < $cycles; $i++) {
+            $cycle_avg = 0;
+            for ($j = 0; $j < $this->k; $j++) {
+                $cycle_avg += $series[$i*$this->k + $j];
+            }
+            $cycle_avg /= $this->k;
+
+            for ($j = 0; $j < $this->k; $j++) {
+                $p[$j] += $series[$i*$this->k + $j] / $cycle_avg;
+            }
+        }
+
+        for ($i = 0; $i < $this->k; $i++) {
+            $p[$i] /= $cycles;
+        }
+
+        return $p;
     }
 }
