@@ -1,4 +1,14 @@
 <?
+/* 
+ * Multiplicative Implementation 
+ * http://en.wikipedia.org/wiki/Exponential_smoothing#Triple_exponential_smoothing
+ *
+ * Holt-Winter is a triple exponential smoothing algorithm 
+ * involving the following three factors:
+ *  alpha: data smoothing factor 0 < alpha < 1
+ *  beta: trend smoothing factor 0 < beta < 1
+ *  gamma: seasonal smoothing factor 0 < gamma < 1
+ * */
 
 class HoltWinters
 {
