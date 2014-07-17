@@ -1,90 +1,100 @@
-<?
+<?php
 /* 
  * Multiplicative Implementation 
  * http://en.wikipedia.org/wiki/Exponential_smoothing#Triple_exponential_smoothing
  *
  * Holt-Winter is a triple exponential smoothing algorithm 
- * involving the following three factors:
+ * involving the following factors / parameters:
  *  alpha: data smoothing factor 0 < alpha < 1
  *  beta: trend smoothing factor 0 < beta < 1
  *  gamma: seasonal smoothing factor 0 < gamma < 1
+ *  L: period length
  * */
 
 class HoltWinters
 {
-    function __construct($alpha, $beta, $gamma, $k)
+    private $alpha;
+    private $beta;
+    private $gamma;
+    private $L;
+    private $series;
+    private $levels;
+    private $trends;
+    private $seasonals;
+
+    function __construct($alpha, $beta, $gamma, $L, $series)
     {
         $this->alpha = $alpha;
         $this->beta = $beta;
         $this->gamma = $gamma;
-        $this->k = $k;
+        $this->L = $L;
+        $this->series = $series;
+
+        $this->build_model();
     }
 
-    public function forecast($series, $output_len)
+    private function build_model()
     {
-        $s = array($series[0]);
-        $t = $this->initial_trend($series);
-        $p = $this->initial_seansonal_indices($series);
-        $F = $s;
+        $this->initialize_levels();
+        $this->initialize_trends();
+        $this->initialize_seasonals();
 
-        $cap = min(count($series), $output_len);
-        for ($i = 1; $i < $cap; $i++) {
-            $x = $series[$i];
-            $ik = $i >= $this->k ? $i-$this->k : $i;
-            $pik = $p[$ik];
+        for ($i = $this->L; $i < count($this->series); $i++) {
+            $x = $this->series[$i];
+            $s0 = $this->seasonals[$i-$this->L];
+            $l0 = $this->levels[$i-1];
+            $t0 = $this->trends[$i-1];
 
-            $s[$i] = $this->alpha * $x / $pik + 
-                (1 - $this->alpha) * ($s[$i-1] + $t[$i-1]);
-            $t[$i] = $this->beta * ($s[$i] - $s[$i-1]) + 
-                (1 - $this->beta) * $t[$i-1];
-            $p[$i] = $this->gamma * $x / $s[$i] + 
-                (1 - $this->gamma) * $pik;
+            $l = $this->alpha * $x / $s0 + (1 - $this->alpha) * ($l0 + $t0);
+            $t = $this->beta * ($l - $l0) + (1 - $this->beta) * $t0;
+            $s = $this->gamma * ($x / $l) + (1 - $this->gamma) * $s0;
 
-            $ik = $i-1 >= $this->k ? $i-$this->k-1 : $i-1;
-            $F[$i] = ($s[$i-1] + $t[$i-1]) * $p[$ik];
+            $this->levels[$i] = $l;
+            $this->trends[$i] = $t;
+            $this->seasonals[$i] = $s;
         }
-
-        $i = count($s)-1;
-        for ($h = 1; $h <= $output_len-count($series); $h++) {
-            $pik = $i-$this->k+($h % $this->k);
-            $F[$i+$h] = ($s[$i] + $h*$t[$i]) * $p[$pik];
-        }
-
-        return $F;
     }
 
-    private function initial_trend($series)
+    private function initialize_levels()
     {
+        $this->levels = array();
         $sum = 0;
-        for ($i = 0; $i < $this->k; $i++) {
-            $sum += ($series[$this->k+$i] - $series[$i]) / 
-                $this->k;
+        for ($i = 0; $i < $this->L - 1; $i++) {
+            $this->levels[] = null;
+            $sum += $this->series[$i];
         }
-
-        return array($sum / $this->k);
+        $sum += $this->series[$this->L-1];
+        $this->levels[] = $sum / $this->L;
     }
 
-    private function initial_seansonal_indices($series)
+    private function initialize_trends()
     {
-        $cycles = floor(count($series) / $this->k);
-        $p = array_fill(0, $this->k, 0);
+        $this->trends = array();
+        for ($i = 0; $i < $this->L - 1; $i++) {
+            $this->trends[] = null;
+        }
+        $this->trends[] = 0;
+    }
 
-        for ($i = 0; $i < $cycles; $i++) {
-            $cycle_avg = 0;
-            for ($j = 0; $j < $this->k; $j++) {
-                $cycle_avg += $series[$i*$this->k + $j];
-            }
-            $cycle_avg /= $this->k;
+    private function initialize_seasonals()
+    {
+        $this->seasonals = array();
+        for ($i = 0; $i < $this->L; $i++) {
+            $this->seasonals[] = $this->series[$i] / $this->levels[$this->L-1];
+        }
+    }
 
-            for ($j = 0; $j < $this->k; $j++) {
-                $p[$j] += $series[$i*$this->k + $j] / $cycle_avg;
-            }
+    public function forecast($k)
+    {
+        $m = $k - count($this->series) + 1;
+        if ($m <= 0) {
+            throw new Exception("Supposed to forecast future series");
         }
 
-        for ($i = 0; $i < $this->k; $i++) {
-            $p[$i] /= $cycles;
-        }
+        $i = count($this->series)-1;
+        $j = $i - $this->L + (($m-1) % $this->L) + 1;
+        $forecast = ($this->levels[$i] + $m * $this->trends[$i]) * $this->seasonals[$j];
 
-        return $p;
+        return $forecast;
     }
 }
