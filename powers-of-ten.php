@@ -31,4 +31,9 @@ function power_of_ten($nums)
     return $product * pow(10, $magnitudes);
 }
 
-echo power_of_ten(array(9000, 17, 1/400, 1));
+/*
+ * Tests
+ */
+if (!debug_backtrace()) {
+    assert(power_of_ten(array(9000, 17, 1/400, 1)), 450);
+}
